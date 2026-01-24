@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI SEO Agent - Cloudflare Powered</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen text-white">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <h1 class="text-5xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                AI SEO Agent
+            </h1>
+            <p class="text-gray-300">Powered by Cloudflare Workers AI + RAG</p>
+        </header>
+
+        <!-- URL Analysis Section -->
+        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6 shadow-2xl border border-white/20">
+            <h2 class="text-2xl font-bold mb-4">🔍 Analyze Website</h2>
+            <div class="flex gap-3">
+                <input 
+                    type="url" 
+                    id="urlInput" 
+                    placeholder="https://example.com"
+                    class="flex-1 px-4 py-3 rounded-lg bg-white/5 border border-white/20 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/50"
+                />
+                <button 
+                    onclick="analyzeUrl()"
+                    class="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg font-semibold hover:from-blue-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-purple-500/50"
+                >
+                    Analyze
+                </button>
+            </div>
+            <div id="analysisResult" class="mt-4 hidden"></div>
+        </div>
+
+        <!-- Chat Section -->
+        <div class="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-600 to-purple-600 p-4">
+                <h2 class="text-xl font-bold">💬 SEO Chat Assistant</h2>
+                <p class="text-sm text-blue-100">Ask me anything about SEO optimization</p>
+            </div>
+            
+            <div id="chatMessages" class="h-96 overflow-y-auto p-6 space-y-4">
+                <div class="text-gray-400 text-center text-sm">
+                    Start by analyzing a URL or ask me an SEO question!
+                </div>
+            </div>
+
+            <div class="p-4 bg-white/5 border-t border-white/10">
+                <div class="flex gap-3">
+                    <input 
+                        type="text" 
+                        id="chatInput" 
+                        placeholder="Ask about SEO best practices..."
+                        class="flex-1 px-4 py-3 rounded-lg bg-white/5 border border-white/20 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/50"
+                        onkeypress="if(event.key==='Enter') sendMessage()"
+                    />
+                    <button 
+                        onclick="sendMessage()"
+                        class="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg font-semibold hover:from-purple-600 hover:to-pink-700 transition-all shadow-lg"
+                    >
+                        Send
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Section -->
+        <div class="mt-6 bg-white/10 backdrop-blur-md rounded-2xl p-6 shadow-2xl border border-white/20">
+            <h2 class="text-xl font-bold mb-4">📊 Recent Analyses</h2>
+            <div id="historyList" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <script>
+        // IMPORTANT: Update this with your actual Worker URL!
+        const API_URL = 'https://seo-agent.mchugh18.workers.dev/api';
+        const sessionId = crypto.randomUUID();
+        let currentWorkflowId = null;
+
+        async function analyzeUrl() {
+            const urlInput = document.getElementById('urlInput');
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            const resultDiv = document.getElementById('analysisResult');
+            resultDiv.innerHTML = '<div class="text-blue-400 animate-pulse">🔄 Analyzing website...</div>';
+            resultDiv.classList.remove('hidden');
+
+            try {
+                const response = await fetch(`${API_URL}/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, sessionId })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const text = await response.text();
+                console.log('Raw response:', text);
+
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (parseError) {
+                    console.error('JSON parse error:', parseError);
+                    resultDiv.innerHTML = `<div class="text-red-400">❌ Invalid response from server. Check console for details.</div>`;
+                    return;
+                }
+
+                console.log('Parsed data:', data);
+
+                if (data.error) {
+                    resultDiv.innerHTML = `<div class="text-red-400">❌ Error: ${data.error}</div>`;
+                    return;
+                }
+
+                if (data.data) {
+                    displayAnalysis(data.data);
+                } else {
+                    displayAnalysis(data);
+                }
+                
+                loadHistory();
+            } catch (error) {
+                console.error('Full error:', error);
+                resultDiv.innerHTML = `<div class="text-red-400">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        function displayAnalysis(data) {
+            const resultDiv = document.getElementById('analysisResult');
+            
+            const analysis = data.analysis || data;
+            const pageData = data.pageData || {};
+            const score = analysis.score || 0;
+            const scoreColor = score >= 80 ? 'text-green-400' : score >= 60 ? 'text-yellow-400' : 'text-red-400';
+
+            let recommendationsHtml = '';
+            if (analysis.recommendations && Array.isArray(analysis.recommendations)) {
+                recommendationsHtml = analysis.recommendations.map(r => {
+                    if (typeof r === 'string') {
+                        return `<li>${r}</li>`;
+                    } else if (r && r.text) {
+                        return `<li><span class="font-semibold">[${r.priority}]</span> ${r.text}</li>`;
+                    }
+                    return '';
+                }).filter(Boolean).join('');
+            }
+
+            let issuesHtml = '';
+            if (analysis.issues && Array.isArray(analysis.issues)) {
+                issuesHtml = analysis.issues.map(issue => `<li>${issue}</li>`).join('');
+            }
+
+            resultDiv.innerHTML = `
+                <div class="bg-white/5 rounded-lg p-4 border border-white/10">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-bold">SEO Score</h3>
+                        <div class="${scoreColor} text-3xl font-bold">${score}/100</div>
+                    </div>
+                    <div class="space-y-2">
+                        <p><strong>Title:</strong> ${pageData.title || 'N/A'}</p>
+                        <p><strong>Meta:</strong> ${pageData.metaDescription || 'N/A'}</p>
+                        <p><strong>Headings:</strong> ${pageData.headings?.length || 0}</p>
+                        <p><strong>Images:</strong> ${pageData.images?.length || 0}</p>
+                    </div>
+                    ${issuesHtml ? `
+                        <div class="mt-4">
+                            <h4 class="font-bold mb-2">🔍 Issues Found:</h4>
+                            <ul class="list-disc list-inside space-y-1 text-sm">
+                                ${issuesHtml}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    ${recommendationsHtml ? `
+                        <div class="mt-4">
+                            <h4 class="font-bold mb-2">🎯 Recommendations:</h4>
+                            <ul class="list-disc list-inside space-y-1 text-sm">
+                                ${recommendationsHtml}
+                            </ul>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            addMessage(message, 'user');
+            input.value = '';
+
+            const chatDiv = document.getElementById('chatMessages');
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'text-gray-400 animate-pulse';
+            loadingDiv.textContent = '🤔 Thinking...';
+            chatDiv.appendChild(loadingDiv);
+            chatDiv.scrollTop = chatDiv.scrollHeight;
+
+            try {
+                const response = await fetch(`${API_URL}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, sessionId, context: currentWorkflowId })
+                });
+
+                const data = await response.json();
+                loadingDiv.remove();
+                addMessage(data.response, 'assistant', data.sources);
+            } catch (error) {
+                loadingDiv.remove();
+                addMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function addMessage(text, type, sources = []) {
+            const chatDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            
+            const colors = {
+                user: 'bg-blue-600/20 border-blue-400/30 ml-12',
+                assistant: 'bg-purple-600/20 border-purple-400/30 mr-12',
+                error: 'bg-red-600/20 border-red-400/30'
+            };
+
+            messageDiv.className = `p-4 rounded-lg border ${colors[type]}`;
+            messageDiv.innerHTML = `
+                <div class="font-semibold mb-1">${type === 'user' ? 'You' : 'AI SEO Agent'}</div>
+                <div class="text-sm">${text}</div>
+                ${sources && sources.length > 0 ? `
+                    <div class="mt-2 text-xs text-gray-400">
+                        📚 Sources: ${sources.join(', ')}
+                    </div>
+                ` : ''}
+            `;
+
+            chatDiv.appendChild(messageDiv);
+            chatDiv.scrollTop = chatDiv.scrollHeight;
+        }
+
+        async function loadHistory() {
+            try {
+                const response = await fetch(`${API_URL}/history`);
+                const data = await response.json();
+                
+                const historyDiv = document.getElementById('historyList');
+                historyDiv.innerHTML = data.map(item => `
+                    <div class="p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
+                        <div class="flex justify-between items-center">
+                            <span class="truncate">${item.url}</span>
+                            <span class="text-sm ${item.score >= 80 ? 'text-green-400' : item.score >= 60 ? 'text-yellow-400' : 'text-red-400'}">
+                                ${item.score}/100
+                            </span>
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">${new Date(item.created_at).toLocaleDateString()}</div>
+                    </div>
+                `).join('') || '<div class="text-gray-400 text-sm">No analyses yet</div>';
+            } catch (error) {
+                console.error('Failed to load history:', error);
+            }
+        }
+
+        // Load history on page load
+        loadHistory();
+    </script>
+</body>
+</html>

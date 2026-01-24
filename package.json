@@ -1,0 +1,35 @@
+{
+  "name": "cloudflare-seo-agent",
+  "version": "1.0.0",
+  "description": "RAG-powered SEO Agent built on Cloudflare Workers AI",
+  "main": "src/worker.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "tsc",
+    "setup:db": "wrangler d1 create seo-agent-db && wrangler d1 execute seo-agent-db --file=./schema.sql",
+    "setup:vectorize": "wrangler vectorize create seo-knowledge-base --dimensions=768 --metric=cosine",
+    "setup:kv": "wrangler kv:namespace create CACHE",
+    "populate:vectorize": "wrangler dev --test-scheduled",
+    "tail": "wrangler tail"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "ai",
+    "seo",
+    "rag",
+    "llm"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@cloudflare/ai": "^1.0.0",
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^4.60.0"
+  }
+}

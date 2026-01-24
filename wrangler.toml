@@ -1,0 +1,23 @@
+name = "seo-agent"
+main = "src/worker.ts"
+compatibility_date = "2024-01-01"
+
+# AI Binding
+[ai]
+binding = "AI"
+
+# Vectorize for RAG
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "seo-knowledge-base"
+
+# D1 Database for memory/state
+[[d1_databases]]
+binding = "DB"
+database_name = "seo-agent-db"
+database_id = "71786c7c-59f7-4cdd-b7e6-cccdeaa23c45"  # Your actual ID
+
+# KV for caching
+[[kv_namespaces]]
+binding = "CACHE"
+id = "5308234dd9034369be757b1d2483801e"  # Your actual ID
