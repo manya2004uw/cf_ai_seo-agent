@@ -5,80 +5,431 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI SEO Agent - Cloudflare Powered</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow-x: hidden;
+        }
+        
+        /* WebGL Canvas Background */
+        #shaderCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        
+        /* Shimmer Button */
+        .shimmer-button {
+            position: relative;
+            z-index: 0;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(139, 92, 246, 0.8);
+            border-radius: 100px;
+            padding: 0.75rem 1.5rem;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .shimmer-button:active {
+            transform: translateY(1px);
+        }
+        
+        /* Shimmer spark container */
+        .shimmer-button::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -30;
+            filter: blur(2px);
+            overflow: visible;
+        }
+        
+        /* Shimmer spark */
+        .shimmer-button::after {
+            content: '';
+            position: absolute;
+            inset: -100%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(
+                from calc(270deg - 45deg),
+                transparent 0,
+                rgba(255, 255, 255, 0.6) 90deg,
+                transparent 90deg
+            );
+            animation: shimmer-spin 3s linear infinite;
+        }
+        
+        @keyframes shimmer-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Shimmer highlight */
+        .shimmer-button .shimmer-highlight {
+            position: absolute;
+            inset: 0;
+            border-radius: 1rem;
+            padding: 0.375rem 1rem;
+            box-shadow: inset 0 -8px 10px rgba(255, 255, 255, 0.12);
+            transition: all 0.3s ease-in-out;
+            pointer-events: none;
+        }
+        
+        .shimmer-button:hover .shimmer-highlight {
+            box-shadow: inset 0 -6px 10px rgba(255, 255, 255, 0.25);
+        }
+        
+        .shimmer-button:active .shimmer-highlight {
+            box-shadow: inset 0 -10px 10px rgba(255, 255, 255, 0.25);
+        }
+        
+        /* Shimmer backdrop */
+        .shimmer-button .shimmer-backdrop {
+            position: absolute;
+            z-index: -20;
+            inset: 0.05em;
+            background: rgba(139, 92, 246, 0.9);
+            border-radius: 100px;
+        }
+        
+        /* Button content wrapper */
+        .shimmer-button .button-content {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        /* Glass card effects */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+        
+        /* Animations */
+        .score-ring {
+            stroke-dasharray: 283;
+            stroke-dashoffset: 283;
+            animation: fillRing 1.5s ease-out forwards;
+        }
+        
+        @keyframes fillRing {
+            to { stroke-dashoffset: 0; }
+        }
+        
+        .pulse-dot {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .slide-up {
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.3);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(139, 92, 246, 0.3);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(139, 92, 246, 0.5);
+        }
+    </style>
 </head>
-<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen text-white">
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
-        <header class="text-center mb-8">
-            <h1 class="text-5xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                AI SEO Agent
-            </h1>
-            <p class="text-gray-300">Powered by Cloudflare Workers AI + RAG</p>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+    <!-- Shader Background -->
+    <canvas id="shaderCanvas"></canvas>
+    
+    <div class="container mx-auto px-4 py-6 max-w-7xl relative z-10">
+        <!-- Header -->
+        <header class="mb-8">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/50">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-indigo-500 bg-clip-text text-transparent">
+                                SEO Intelligence
+                            </h1>
+                            <p class="text-sm text-slate-400">Powered by Cloudflare Workers AI</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="pulse-dot w-2 h-2 rounded-full bg-purple-500"></div>
+                    <span class="text-xs text-slate-400">Live Analysis</span>
+                </div>
+            </div>
         </header>
 
-        <!-- URL Analysis Section -->
-        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6 shadow-2xl border border-white/20">
-            <h2 class="text-2xl font-bold mb-4">🔍 Analyze Website</h2>
-            <div class="flex gap-3">
-                <input 
-                    type="url" 
-                    id="urlInput" 
-                    placeholder="https://example.com"
-                    class="flex-1 px-4 py-3 rounded-lg bg-white/5 border border-white/20 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/50"
-                />
-                <button 
-                    onclick="analyzeUrl()"
-                    class="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg font-semibold hover:from-blue-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-purple-500/50"
-                >
-                    Analyze
-                </button>
-            </div>
-            <div id="analysisResult" class="mt-4 hidden"></div>
-        </div>
-
-        <!-- Chat Section -->
-        <div class="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
-            <div class="bg-gradient-to-r from-blue-600 to-purple-600 p-4">
-                <h2 class="text-xl font-bold">💬 SEO Chat Assistant</h2>
-                <p class="text-sm text-blue-100">Ask me anything about SEO optimization</p>
-            </div>
-            
-            <div id="chatMessages" class="h-96 overflow-y-auto p-6 space-y-4">
-                <div class="text-gray-400 text-center text-sm">
-                    Start by analyzing a URL or ask me an SEO question!
+        <!-- Main Analysis Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <!-- URL Input Card -->
+            <div class="lg:col-span-2 glass-card rounded-2xl p-6 shadow-2xl">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <h2 class="text-xl font-semibold text-slate-200">Analyze Website</h2>
                 </div>
-            </div>
-
-            <div class="p-4 bg-white/5 border-t border-white/10">
-                <div class="flex gap-3">
+                
+                <div class="flex gap-3 mb-4">
                     <input 
-                        type="text" 
-                        id="chatInput" 
-                        placeholder="Ask about SEO best practices..."
-                        class="flex-1 px-4 py-3 rounded-lg bg-white/5 border border-white/20 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/50"
-                        onkeypress="if(event.key==='Enter') sendMessage()"
+                        type="url" 
+                        id="urlInput" 
+                        placeholder="https://example.com"
+                        class="flex-1 px-4 py-3.5 rounded-xl bg-slate-900/50 border border-slate-700/50 focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-slate-200 placeholder-slate-500 transition-all"
                     />
-                    <button 
-                        onclick="sendMessage()"
-                        class="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg font-semibold hover:from-purple-600 hover:to-pink-700 transition-all shadow-lg"
-                    >
-                        Send
+                    <button onclick="analyzeUrl()" class="shimmer-button">
+                        <span class="shimmer-backdrop"></span>
+                        <span class="shimmer-highlight"></span>
+                        <span class="button-content">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                            Analyze
+                        </span>
                     </button>
                 </div>
+                
+                <div id="analysisResult" class="hidden"></div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="glass-card rounded-2xl p-6 shadow-2xl">
+                <h3 class="text-sm font-medium text-slate-400 mb-4">Quick Metrics</h3>
+                <div class="space-y-3">
+                    <div class="metric-card rounded-xl p-3 hover:scale-105 transition-transform">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-slate-400">Analyses Today</span>
+                            <span class="text-lg font-bold text-purple-400" id="todayCount">0</span>
+                        </div>
+                    </div>
+                    <div class="metric-card rounded-xl p-3 hover:scale-105 transition-transform">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-slate-400">Avg Score</span>
+                            <span class="text-lg font-bold text-pink-400" id="avgScore">--</span>
+                        </div>
+                    </div>
+                    <div class="metric-card rounded-xl p-3 hover:scale-105 transition-transform">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-slate-400">Total Scans</span>
+                            <span class="text-lg font-bold text-indigo-400" id="totalScans">0</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- History Section -->
-        <div class="mt-6 bg-white/10 backdrop-blur-md rounded-2xl p-6 shadow-2xl border border-white/20">
-            <h2 class="text-xl font-bold mb-4">📊 Recent Analyses</h2>
-            <div id="historyList" class="space-y-2"></div>
+        <!-- AI Assistant Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Chat Interface -->
+            <div class="lg:col-span-2 glass-card rounded-2xl shadow-2xl overflow-hidden">
+                <div class="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-b border-slate-700/50 p-4">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                        </svg>
+                        <h2 class="text-lg font-semibold text-slate-200">SEO Assistant</h2>
+                        <span class="ml-auto text-xs text-slate-400">Powered by RAG + Llama 3.3</span>
+                    </div>
+                </div>
+                
+                <div id="chatMessages" class="h-80 overflow-y-auto p-6 space-y-4">
+                    <div class="text-center">
+                        <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800/50 border border-slate-700/50 text-sm text-slate-400">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"/>
+                            </svg>
+                            Ask me about SEO best practices
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-4 border-t border-slate-700/50 bg-slate-900/30">
+                    <div class="flex gap-3">
+                        <input 
+                            type="text" 
+                            id="chatInput" 
+                            placeholder="How can I improve my meta descriptions?"
+                            class="flex-1 px-4 py-3 rounded-xl bg-slate-900/50 border border-slate-700/50 focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-slate-200 placeholder-slate-500"
+                            onkeypress="if(event.key==='Enter') sendMessage()"
+                        />
+                        <button onclick="sendMessage()" class="shimmer-button">
+                            <span class="shimmer-backdrop"></span>
+                            <span class="shimmer-highlight"></span>
+                            <span class="button-content">Send</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="glass-card rounded-2xl p-6 shadow-2xl">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    <h2 class="text-lg font-semibold text-slate-200">Recent Analyses</h2>
+                </div>
+                <div id="historyList" class="space-y-2 max-h-96 overflow-y-auto"></div>
+            </div>
         </div>
     </div>
 
     <script>
-        // IMPORTANT: Update this with your actual Worker URL!
+        // Shader Canvas Setup
+        const canvas = document.getElementById('shaderCanvas');
+        const gl = canvas.getContext('webgl');
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        if (gl) {
+            const vertexShaderSource = `
+                attribute vec2 a_position;
+                varying vec2 vUv;
+                void main() {
+                    vUv = a_position * 0.5 + 0.5;
+                    gl_Position = vec4(a_position, 0.0, 1.0);
+                }
+            `;
+
+            const fragmentShaderSource = `
+                precision mediump float;
+                uniform float u_time;
+                uniform vec2 u_resolution;
+                varying vec2 vUv;
+                
+                void main() {
+                    vec2 uv = vUv;
+                    
+                    // Animated noise pattern
+                    float noise = sin(uv.x * 20.0 + u_time) * cos(uv.y * 15.0 + u_time * 0.8);
+                    noise += sin(uv.x * 35.0 - u_time * 2.0) * cos(uv.y * 25.0 + u_time * 1.2) * 0.5;
+                    
+                    // Light purple color palette
+                    vec3 color1 = vec3(0.4, 0.3, 0.6);  // Light purple
+                    vec3 color2 = vec3(0.6, 0.4, 0.8);  // Lighter purple
+                    vec3 color = mix(color1, color2, noise * 0.5 + 0.5);
+                    
+                    // Add white glow based on noise
+                    float intensity = 1.0 + sin(u_time * 2.0) * 0.3;
+                    color = mix(color, vec3(1.0), pow(abs(noise), 2.0) * intensity * 0.3);
+                    
+                    // Glow effect from center
+                    float glow = 1.0 - length(uv - 0.5) * 2.0;
+                    glow = pow(glow, 2.0);
+                    
+                    // Final color with opacity
+                    gl_FragColor = vec4(color * glow * 0.4, glow * 0.3);
+                }
+            `;
+
+            function createShader(type, source) {
+                const shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                    console.error(gl.getShaderInfoLog(shader));
+                    return null;
+                }
+                return shader;
+            }
+
+            const vertexShader = createShader(gl.VERTEX_SHADER, vertexShaderSource);
+            const fragmentShader = createShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
+
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+
+            const positions = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+            const buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+            const posLoc = gl.getAttribLocation(program, 'a_position');
+            const timeLoc = gl.getUniformLocation(program, 'u_time');
+            const resLoc = gl.getUniformLocation(program, 'u_resolution');
+
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+            let startTime = Date.now();
+            function render() {
+                gl.clearColor(0.05, 0.03, 0.1, 1);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+                gl.useProgram(program);
+                gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+                gl.enableVertexAttribArray(posLoc);
+                gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+                gl.uniform1f(timeLoc, (Date.now() - startTime) * 0.001);
+                gl.uniform2f(resLoc, canvas.width, canvas.height);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                requestAnimationFrame(render);
+            }
+            render();
+        }
+
+        // Main App Logic
         const API_URL = 'https://seo-agent.mchugh18.workers.dev/api';
         const sessionId = crypto.randomUUID();
-        let currentWorkflowId = null;
 
         async function analyzeUrl() {
             const urlInput = document.getElementById('urlInput');
@@ -90,7 +441,12 @@
             }
 
             const resultDiv = document.getElementById('analysisResult');
-            resultDiv.innerHTML = '<div class="text-blue-400 animate-pulse">🔄 Analyzing website...</div>';
+            resultDiv.innerHTML = `
+                <div class="flex items-center gap-3 p-4 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                    <div class="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span class="text-purple-400">Analyzing website...</span>
+                </div>
+            `;
             resultDiv.classList.remove('hidden');
 
             try {
@@ -100,95 +456,102 @@
                     body: JSON.stringify({ url, sessionId })
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
                 const text = await response.text();
-                console.log('Raw response:', text);
-
-                let data;
-                try {
-                    data = JSON.parse(text);
-                } catch (parseError) {
-                    console.error('JSON parse error:', parseError);
-                    resultDiv.innerHTML = `<div class="text-red-400">❌ Invalid response from server. Check console for details.</div>`;
-                    return;
-                }
-
-                console.log('Parsed data:', data);
+                const data = JSON.parse(text);
 
                 if (data.error) {
-                    resultDiv.innerHTML = `<div class="text-red-400">❌ Error: ${data.error}</div>`;
+                    resultDiv.innerHTML = `<div class="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400">${data.error}</div>`;
                     return;
                 }
 
-                if (data.data) {
-                    displayAnalysis(data.data);
-                } else {
-                    displayAnalysis(data);
-                }
-                
+                displayAnalysis(data.data || data);
                 loadHistory();
+                updateStats();
             } catch (error) {
-                console.error('Full error:', error);
-                resultDiv.innerHTML = `<div class="text-red-400">❌ Error: ${error.message}</div>`;
+                resultDiv.innerHTML = `<div class="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400">Error: ${error.message}</div>`;
             }
         }
 
         function displayAnalysis(data) {
             const resultDiv = document.getElementById('analysisResult');
-            
             const analysis = data.analysis || data;
             const pageData = data.pageData || {};
             const score = analysis.score || 0;
-            const scoreColor = score >= 80 ? 'text-green-400' : score >= 60 ? 'text-yellow-400' : 'text-red-400';
-
-            let recommendationsHtml = '';
-            if (analysis.recommendations && Array.isArray(analysis.recommendations)) {
-                recommendationsHtml = analysis.recommendations.map(r => {
-                    if (typeof r === 'string') {
-                        return `<li>${r}</li>`;
-                    } else if (r && r.text) {
-                        return `<li><span class="font-semibold">[${r.priority}]</span> ${r.text}</li>`;
-                    }
-                    return '';
-                }).filter(Boolean).join('');
-            }
+            
+            const scoreColor = score >= 80 ? 'emerald' : score >= 60 ? 'yellow' : 'red';
+            const scoreDash = 283 - (283 * score / 100);
 
             let issuesHtml = '';
-            if (analysis.issues && Array.isArray(analysis.issues)) {
-                issuesHtml = analysis.issues.map(issue => `<li>${issue}</li>`).join('');
+            if (analysis.issues && analysis.issues.length > 0) {
+                issuesHtml = analysis.issues.map(issue => `
+                    <div class="flex items-start gap-2 p-2 rounded-lg bg-slate-800/30 hover:bg-slate-800/50 transition-colors">
+                        <svg class="w-4 h-4 text-${scoreColor}-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"/>
+                        </svg>
+                        <span class="text-sm text-slate-300">${issue}</span>
+                    </div>
+                `).join('');
+            }
+
+            let recsHtml = '';
+            if (analysis.recommendations && analysis.recommendations.length > 0) {
+                recsHtml = analysis.recommendations.slice(0, 5).map(rec => {
+                    const text = typeof rec === 'string' ? rec : rec.text;
+                    const priority = rec.priority || 'Medium';
+                    const priorityColor = priority === 'High' ? 'red' : priority === 'Medium' ? 'yellow' : 'blue';
+                    return `
+                        <div class="flex items-start gap-2 p-2 rounded-lg bg-slate-800/30 hover:bg-slate-800/50 transition-colors">
+                            <span class="px-2 py-0.5 rounded text-xs font-medium bg-${priorityColor}-500/20 text-${priorityColor}-400 flex-shrink-0">${priority}</span>
+                            <span class="text-sm text-slate-300">${text}</span>
+                        </div>
+                    `;
+                }).join('');
             }
 
             resultDiv.innerHTML = `
-                <div class="bg-white/5 rounded-lg p-4 border border-white/10">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-xl font-bold">SEO Score</h3>
-                        <div class="${scoreColor} text-3xl font-bold">${score}/100</div>
-                    </div>
-                    <div class="space-y-2">
-                        <p><strong>Title:</strong> ${pageData.title || 'N/A'}</p>
-                        <p><strong>Meta:</strong> ${pageData.metaDescription || 'N/A'}</p>
-                        <p><strong>Headings:</strong> ${pageData.headings?.length || 0}</p>
-                        <p><strong>Images:</strong> ${pageData.images?.length || 0}</p>
-                    </div>
-                    ${issuesHtml ? `
-                        <div class="mt-4">
-                            <h4 class="font-bold mb-2">🔍 Issues Found:</h4>
-                            <ul class="list-disc list-inside space-y-1 text-sm">
-                                ${issuesHtml}
-                            </ul>
+                <div class="slide-up space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="metric-card rounded-xl p-4">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="font-semibold text-slate-200">SEO Score</h3>
+                                <div class="relative w-20 h-20">
+                                    <svg class="transform -rotate-90" width="80" height="80">
+                                        <circle cx="40" cy="40" r="36" stroke="rgba(148,163,184,0.1)" stroke-width="8" fill="none"/>
+                                        <circle cx="40" cy="40" r="36" stroke="url(#gradient)" stroke-width="8" fill="none" 
+                                                stroke-dasharray="283" stroke-dashoffset="${scoreDash}" class="score-ring"/>
+                                        <defs>
+                                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                <stop offset="0%" style="stop-color:#a78bfa;stop-opacity:1" />
+                                                <stop offset="100%" style="stop-color:#ec4899;stop-opacity:1" />
+                                            </linearGradient>
+                                        </defs>
+                                    </svg>
+                                    <div class="absolute inset-0 flex items-center justify-center">
+                                        <span class="text-2xl font-bold text-${scoreColor}-400">${score}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between"><span class="text-slate-400">Title:</span><span class="text-slate-300">${pageData.title?.substring(0, 30) || 'N/A'}...</span></div>
+                                <div class="flex justify-between"><span class="text-slate-400">Headings:</span><span class="text-purple-400">${pageData.headings?.length || 0}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-400">Images:</span><span class="text-purple-400">${pageData.images?.length || 0}</span></div>
+                            </div>
                         </div>
-                    ` : ''}
-                    ${recommendationsHtml ? `
-                        <div class="mt-4">
-                            <h4 class="font-bold mb-2">🎯 Recommendations:</h4>
-                            <ul class="list-disc list-inside space-y-1 text-sm">
-                                ${recommendationsHtml}
-                            </ul>
+                        
+                        <div class="space-y-2">
+                            <h3 class="font-semibold text-slate-200 mb-2">Issues Found</h3>
+                            <div class="space-y-1 max-h-32 overflow-y-auto">
+                                ${issuesHtml || '<p class="text-sm text-slate-400">No issues found</p>'}
+                            </div>
                         </div>
-                    ` : ''}
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-semibold text-slate-200 mb-2">Recommendations</h3>
+                        <div class="space-y-1 max-h-40 overflow-y-auto">
+                            ${recsHtml}
+                        </div>
+                    </div>
                 </div>
             `;
         }
@@ -196,7 +559,6 @@
         async function sendMessage() {
             const input = document.getElementById('chatInput');
             const message = input.value.trim();
-            
             if (!message) return;
 
             addMessage(message, 'user');
@@ -204,8 +566,8 @@
 
             const chatDiv = document.getElementById('chatMessages');
             const loadingDiv = document.createElement('div');
-            loadingDiv.className = 'text-gray-400 animate-pulse';
-            loadingDiv.textContent = '🤔 Thinking...';
+            loadingDiv.className = 'flex items-center gap-2 text-slate-400';
+            loadingDiv.innerHTML = '<div class="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div> Thinking...';
             chatDiv.appendChild(loadingDiv);
             chatDiv.scrollTop = chatDiv.scrollHeight;
 
@@ -213,7 +575,7 @@
                 const response = await fetch(`${API_URL}/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message, sessionId, context: currentWorkflowId })
+                    body: JSON.stringify({ message, sessionId })
                 });
 
                 const data = await response.json();
@@ -229,51 +591,5 @@
             const chatDiv = document.getElementById('chatMessages');
             const messageDiv = document.createElement('div');
             
-            const colors = {
-                user: 'bg-blue-600/20 border-blue-400/30 ml-12',
-                assistant: 'bg-purple-600/20 border-purple-400/30 mr-12',
-                error: 'bg-red-600/20 border-red-400/30'
-            };
-
-            messageDiv.className = `p-4 rounded-lg border ${colors[type]}`;
-            messageDiv.innerHTML = `
-                <div class="font-semibold mb-1">${type === 'user' ? 'You' : 'AI SEO Agent'}</div>
-                <div class="text-sm">${text}</div>
-                ${sources && sources.length > 0 ? `
-                    <div class="mt-2 text-xs text-gray-400">
-                        📚 Sources: ${sources.join(', ')}
-                    </div>
-                ` : ''}
-            `;
-
-            chatDiv.appendChild(messageDiv);
-            chatDiv.scrollTop = chatDiv.scrollHeight;
-        }
-
-        async function loadHistory() {
-            try {
-                const response = await fetch(`${API_URL}/history`);
-                const data = await response.json();
-                
-                const historyDiv = document.getElementById('historyList');
-                historyDiv.innerHTML = data.map(item => `
-                    <div class="p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
-                        <div class="flex justify-between items-center">
-                            <span class="truncate">${item.url}</span>
-                            <span class="text-sm ${item.score >= 80 ? 'text-green-400' : item.score >= 60 ? 'text-yellow-400' : 'text-red-400'}">
-                                ${item.score}/100
-                            </span>
-                        </div>
-                        <div class="text-xs text-gray-400 mt-1">${new Date(item.created_at).toLocaleDateString()}</div>
-                    </div>
-                `).join('') || '<div class="text-gray-400 text-sm">No analyses yet</div>';
-            } catch (error) {
-                console.error('Failed to load history:', error);
-            }
-        }
-
-        // Load history on page load
-        loadHistory();
-    </script>
-</body>
-</html>
+            const isUser = type === 'user';
+            message }
